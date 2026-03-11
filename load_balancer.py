@@ -1,23 +1,82 @@
 #!/usr/bin/env python3
-"""Load balancer: round-robin, weighted, least-connections."""
-import sys, random
+"""load_balancer — Round-robin, weighted, least-connections LB. Zero deps."""
+import random
+
 class Server:
-    def __init__(self,name,weight=1): self.name=name; self.weight=weight; self.conns=0; self.total=0
-class LB:
-    def __init__(self,servers): self.servers=servers; self.idx=0
-    def round_robin(self):
-        s=self.servers[self.idx%len(self.servers)]; self.idx+=1; return s
-    def weighted(self):
-        pool=[s for s in self.servers for _ in range(s.weight)]
-        s=pool[self.idx%len(pool)]; self.idx+=1; return s
-    def least_conn(self):
-        return min(self.servers,key=lambda s:s.conns)
-servers=[Server('web-1',3),Server('web-2',2),Server('web-3',1)]
-lb=LB(servers)
-for algo in ['round_robin','weighted','least_conn']:
-    for s in servers: s.conns=0; s.total=0
-    lb.idx=0
-    for _ in range(12):
-        s=getattr(lb,algo)(); s.conns+=1; s.total+=1
-    print(f"\n{algo}:")
-    for s in servers: print(f"  {s.name} (w={s.weight}): {s.total} requests")
+    def __init__(self, name, weight=1):
+        self.name, self.weight = name, weight
+        self.connections = 0
+        self.total_requests = 0
+        self.healthy = True
+
+class RoundRobin:
+    def __init__(self, servers):
+        self.servers = servers
+        self.idx = 0
+    def next(self):
+        healthy = [s for s in self.servers if s.healthy]
+        if not healthy: return None
+        s = healthy[self.idx % len(healthy)]
+        self.idx = (self.idx + 1) % len(healthy)
+        s.total_requests += 1
+        return s
+
+class WeightedRoundRobin:
+    def __init__(self, servers):
+        self.servers = servers
+        self.pool = []
+        for s in servers:
+            self.pool.extend([s] * s.weight)
+        self.idx = 0
+    def next(self):
+        pool = [s for s in self.pool if s.healthy]
+        if not pool: return None
+        s = pool[self.idx % len(pool)]
+        self.idx = (self.idx + 1) % len(pool)
+        s.total_requests += 1
+        return s
+
+class LeastConnections:
+    def __init__(self, servers):
+        self.servers = servers
+    def next(self):
+        healthy = [s for s in self.servers if s.healthy]
+        if not healthy: return None
+        s = min(healthy, key=lambda s: s.connections)
+        s.connections += 1
+        s.total_requests += 1
+        return s
+    def release(self, server):
+        server.connections = max(0, server.connections - 1)
+
+class RandomLB:
+    def __init__(self, servers):
+        self.servers = servers
+    def next(self):
+        healthy = [s for s in self.servers if s.healthy]
+        if not healthy: return None
+        s = random.choice(healthy)
+        s.total_requests += 1
+        return s
+
+def main():
+    random.seed(42)
+    configs = [
+        ("Round Robin", RoundRobin),
+        ("Weighted RR", WeightedRoundRobin),
+        ("Least Conn", LeastConnections),
+        ("Random", RandomLB),
+    ]
+    print("Load Balancer Simulation (100 requests, 4 servers):\n")
+    for name, LBClass in configs:
+        servers = [Server("A",3), Server("B",2), Server("C",1), Server("D",1)]
+        lb = LBClass(servers)
+        for _ in range(100):
+            s = lb.next()
+            if hasattr(lb, 'release') and random.random() > 0.3:
+                lb.release(s)
+        dist = {s.name: s.total_requests for s in servers}
+        print(f"  {name:<15} {dist}")
+
+if __name__ == "__main__":
+    main()
