@@ -1,9 +1,13 @@
-# load-balancer
+# Load Balancer
 
-Zero-dependency Python implementation.
+Load Balancer — zero-dependency, single-file Python CLI.
 
 ## Usage
 
 ```bash
-python3 load_balancer.py
+python3 load_balancer.py --help
 ```
+
+## License
+
+MIT
