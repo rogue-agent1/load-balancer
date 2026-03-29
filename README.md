@@ -1,13 +1,11 @@
-# Load Balancer
+# load-balancer
 
-Load Balancer — zero-dependency, single-file Python CLI.
+Load balancing algorithms (round-robin, weighted, least-connections).
 
 ## Usage
 
 ```bash
-python3 load_balancer.py --help
+python3 load_balancer.py test
 ```
 
-## License
-
-MIT
+Zero dependencies. Python 3.8+.
