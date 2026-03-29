@@ -1,90 +1,63 @@
 #!/usr/bin/env python3
-"""load_balancer - Load balancing algorithms (round-robin, weighted, least-connections)."""
+"""Load balancer algorithms — round robin, weighted, least connections."""
 import sys, random
 
 class Server:
     def __init__(self, name, weight=1):
-        self.name = name
-        self.weight = weight
+        self.name, self.weight = name, weight
         self.connections = 0
-        self.healthy = True
+        self.total_requests = 0
     def __repr__(self):
-        return f"Server({self.name}, w={self.weight}, c={self.connections})"
+        return f"{self.name}(w={self.weight},c={self.connections})"
 
 class RoundRobin:
     def __init__(self, servers):
         self.servers = servers
         self.index = 0
     def next(self):
-        healthy = [s for s in self.servers if s.healthy]
-        if not healthy:
-            return None
-        server = healthy[self.index % len(healthy)]
-        self.index = (self.index + 1) % len(healthy)
-        return server
+        s = self.servers[self.index % len(self.servers)]
+        self.index += 1
+        return s
 
 class WeightedRoundRobin:
     def __init__(self, servers):
         self.servers = servers
-        self.current_weight = 0
-        self.index = -1
+        self.expanded = []
+        for s in servers:
+            self.expanded.extend([s] * s.weight)
+        self.index = 0
     def next(self):
-        healthy = [s for s in self.servers if s.healthy]
-        if not healthy:
-            return None
-        total = sum(s.weight for s in healthy)
-        gcd = healthy[0].weight
-        for s in healthy[1:]:
-            a, b = gcd, s.weight
-            while b:
-                a, b = b, a % b
-            gcd = a
-        while True:
-            self.index = (self.index + 1) % len(healthy)
-            if self.index == 0:
-                self.current_weight -= gcd
-                if self.current_weight <= 0:
-                    self.current_weight = max(s.weight for s in healthy)
-            if healthy[self.index].weight >= self.current_weight:
-                return healthy[self.index]
+        s = self.expanded[self.index % len(self.expanded)]
+        self.index += 1
+        return s
 
 class LeastConnections:
     def __init__(self, servers):
         self.servers = servers
     def next(self):
-        healthy = [s for s in self.servers if s.healthy]
-        if not healthy:
-            return None
-        return min(healthy, key=lambda s: s.connections)
+        return min(self.servers, key=lambda s: s.connections)
+
+class RandomLB:
+    def __init__(self, servers):
+        self.servers = servers
+    def next(self):
+        return random.choice(self.servers)
 
 def test():
-    servers = [Server("a"), Server("b"), Server("c")]
+    servers = [Server("A"), Server("B"), Server("C")]
     rr = RoundRobin(servers)
     seq = [rr.next().name for _ in range(6)]
-    assert seq == ["a", "b", "c", "a", "b", "c"]
-    # weighted
-    ws = [Server("a", 3), Server("b", 1)]
+    assert seq == ["A","B","C","A","B","C"]
+    ws = [Server("A", 2), Server("B", 1)]
     wrr = WeightedRoundRobin(ws)
-    counts = {"a": 0, "b": 0}
-    for _ in range(40):
-        counts[wrr.next().name] += 1
-    assert counts["a"] > counts["b"]
-    # least connections
-    servers2 = [Server("x"), Server("y"), Server("z")]
-    servers2[0].connections = 5
-    servers2[1].connections = 2
-    servers2[2].connections = 8
-    lc = LeastConnections(servers2)
-    assert lc.next().name == "y"
-    # health check
-    servers[1].healthy = False
-    rr2 = RoundRobin(servers)
-    seq2 = [rr2.next().name for _ in range(4)]
-    assert "b" not in seq2
-    print("OK: load_balancer")
+    seq2 = [wrr.next().name for _ in range(6)]
+    assert seq2.count("A") == 4  # 2/3 of requests
+    lc_servers = [Server("X"), Server("Y"), Server("Z")]
+    lc_servers[0].connections = 5; lc_servers[1].connections = 2; lc_servers[2].connections = 8
+    lc = LeastConnections(lc_servers)
+    assert lc.next().name == "Y"
+    print("  load_balancer: ALL TESTS PASSED")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "test":
-        test()
-    else:
-        print("Usage: load_balancer.py test")
+    if len(sys.argv) > 1 and sys.argv[1] == "test": test()
+    else: print("Load balancer algorithms")
